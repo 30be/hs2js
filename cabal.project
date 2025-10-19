@@ -1,0 +1,4 @@
+packages: .
+
+with-compiler: javascript-unknown-ghcjs-ghc-9.6.2
+with-hc-pkg: javascript-unknown-ghcjs-ghc-pkg-9.6.2
