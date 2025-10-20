@@ -24,8 +24,10 @@ set -e
 cabal --with-compiler=javascript-unknown-ghcjs-ghc --with-ghc-pkg=javascript-unknown-ghcjs-ghc-pkg exec bash -- -c "javascript-unknown-ghcjs-ghc $@"
 
 rollup $1 -o $1.js
+# mv $1 $1.js
+
 rm -rf *.jsexe *.o *.hi
 
-if [[ "$1" != *".hs" ]]; then
-  rm $1
+if [[ -f "$1" && "$1" != *".hs" ]]; then
+  rm "$1"
 fi

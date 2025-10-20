@@ -7,5 +7,5 @@ library minimal
   -- main-is: Main.hs
   default-language: Haskell2010
   other-modules: JS, Main
-  build-depends: base, text, vector 
+  build-depends: base, text, vector, relude
 --, jsaddle
