@@ -3,7 +3,9 @@ name: minimal-app
 version: 0.1
 build-type: Simple
 
-executable minimal-app
-  main-is: Main.hs
+library minimal
+  -- main-is: Main.hs
   default-language: Haskell2010
-  build-depends: base, text, vector
+  other-modules: JS, Main
+  build-depends: base, text, vector 
+--, jsaddle

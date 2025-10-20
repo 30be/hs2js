@@ -1,13 +1,18 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 import Control.Monad (forM_)
-import Data.IORef
 import qualified Data.Vector as V
+import JS
 
 main :: IO ()
 main = do
-  -- Basic "Hello, world!"
-  putStrLn "Hello, world!"
-  -- Make an example with the vector:
-  putStrLn "Example with vector:"
-  putStrLn $ V.foldr (\x acc -> x ++ acc) "" (V.fromList ["Hello,", "world!"])
+  -- eval "alert('Hello from haskell!')"
+  -- jvoid $ jcurry "console.log" $. "should work now"
+  -- jvoid $ jcurry "((a, b) => console.log(a+b))" $. "should not"
+  jvoid $ jcurry "alert" --  $. "Hello"
+
+-- \$. "work"
+
+-- \$. "work too"2
