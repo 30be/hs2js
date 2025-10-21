@@ -1,5 +1,13 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 -- Micro library for working with JS
 -- foreign import javascript "((fn) =>{\
 --    \  const curried = (...args) => args.length >= fn.length ? fn(...args) : (...nextArgs) => curried(...args, ...nextArgs); \
@@ -16,11 +24,6 @@
 -- No idea how to do that better now
 -- https://okmij.org/ftp/Haskell/polyvar-comp.lhs
 -- call :: JSVal -> JSVal -> IO JSVal -- temporary
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module JS where
 
@@ -193,45 +196,22 @@ instance ListBuilder [JSVal] where
 instance (ListBuilder next_r) => ListBuilder (JSVal -> next_r) where
   build acc x = build (x : acc)
 
-class MCompose f1 f2 cp gresult result | f1 f2 cp gresult -> result, f2 -> cp where
-  mcomp :: (f1 -> f2) -> (cp -> gresult) -> result
+class MCompose f gresult result | f gresult -> result where
+  mcomp :: f -> ([JSVal] -> gresult) -> result
 
-instance MCompose a JSVal JSVal c (a -> c) where
+instance MCompose (a -> [JSVal]) c (a -> c) where
   mcomp f g = g . f
 
-instance MCompose a [JSVal] [JSVal] c (a -> c) where
-  mcomp f g = g . f
-
-instance (MCompose f1 f2 cp gresult result) => MCompose a (f1 -> f2) cp gresult (a -> result) where
+instance (MCompose (f -> f') gresult result) => MCompose (a -> f -> f') gresult (a -> result) where
   mcomp f g a = mcomp (f a) g
 
-call f = (build [] :: JSVal -> [JSVal]) `mcomp` callList f
+call :: forall builder result. (ListBuilder builder, MCompose builder (IO JSVal) result) => result
+call =
+  (build [] :: builder) `mcomp` \case
+    [] -> error "call requires at least one argument"
+    (x : xs) -> callList x xs
 
-type JSVal = Int
+-- I still need to make it all work with ToJSVal
 
-callList :: JSVal -> [JSVal] -> IO JSVal
-callList a b = pure a
-
-class ListBuilder r where
-  build :: [JSVal] -> r
-
-instance ListBuilder [JSVal] where
-  build = reverse
-
-instance (ListBuilder next_r) => ListBuilder (JSVal -> next_r) where
-  build acc x = build (x : acc)
-
-class MCompose f1 f2 cp gresult result | f1 f2 cp gresult -> result, f2 -> cp where
-  mcomp :: (f1 -> f2) -> (cp -> gresult) -> result
-
-instance MCompose a JSVal JSVal c (a -> c) where
-  mcomp f g = g . f
-
-instance MCompose a [JSVal] [JSVal] c (a -> c) where
-  mcomp f g = g . f
-
-instance (MCompose f1 f2 cp gresult result) => MCompose a (f1 -> f2) cp gresult (a -> result) where
-  mcomp f g a = mcomp (f a) g
-
-call :: (ListBuilder r, MCompose r [JSVal] [JSVal] (IO JSVal) result) => JSVal -> result
-call f = (build @r []) `mcomp` callList f
+-- EXAMPLE:
+--   print =<< call @(JSVal -> JSVal -> [JSVal]) 1 2

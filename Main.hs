@@ -36,7 +36,7 @@ plot id = do
   ctx .> "stroke" >>= call0
   void $ ctx .> "closePath" >>= call0
   alert <- window .>> "alert"
-  void $ (call :: JSVal -> JSVal -> IO JSVal) alert (toJSString "polyvariadic")
+  void $ call @(JSVal -> JSVal -> [JSVal]) alert (toJSString "polyvariadic")
 
 main :: IO ()
 main = plot "canvas"
