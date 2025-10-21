@@ -1,11 +1,13 @@
 -- Micro library for working with JS
+{-# LANGUAGE TemplateHaskell #-}
 
 module JS where
 
+import CallGen (jsFuncCalls)
 import Control.Arrow ((>>>))
 import Control.Monad (void, when, (>=>))
 import Data.String (IsString, fromString)
-import GHC.JS.Prim (JSVal, fromJSInt, toJSInt, toJSString)
+import GHC.JS.Prim (JSVal, fromJSInt, toJSArray, toJSInt, toJSString)
 
 -- foreign import javascript "eval" eval :: JSVal -> IO JSVal
 
@@ -21,21 +23,9 @@ foreign import javascript "document.getElementById" log_ :: JSVal -> IO JSVal
 
 foreign import javascript "(()=>{debugger;})" debugger :: IO ()
 
-foreign import javascript "((el, sel) => el[sel])" attr :: JSVal -> JSVal -> IO JSVal
-
-foreign import javascript "((el, sel) => el[sel]['bind'](el))" bound_attr :: JSVal -> JSVal -> IO JSVal
+foreign import javascript "((el, sel) => ((typeof el[sel] === 'function') ? el[sel].bind(el) : el[sel]))" attr :: JSVal -> JSVal -> IO JSVal
 
 foreign import javascript "((el, sel, val) => {el[sel] = val })" set_ :: JSVal -> JSVal -> JSVal -> IO ()
-
-foreign import javascript "(el => el())" call0 :: JSVal -> IO JSVal
-
-foreign import javascript "((el, a1) => el(a1))" call_ :: JSVal -> JSVal -> IO JSVal
-
-foreign import javascript "((el, a1, a2) => el(a1, a2))" call2_ :: JSVal -> JSVal -> JSVal -> IO JSVal
-
-foreign import javascript "((x) => {x})" jsFromInt :: Int -> IO JSVal
-
-foreign import javascript "((x) => {x})" jsFromDouble :: Double -> IO JSVal
 
 foreign import javascript "((fn) =>{\
    \const curried = (...args) => args.length >= fn.length ? fn(...args) : (...nextArgs) => curried(...args, ...nextArgs); \
@@ -58,12 +48,6 @@ a .> b = toJSVal b >>= attr a
 (.>>) :: (ToJSVal b) => IO JSVal -> b -> IO JSVal
 a .>> b = a >>= (.> b)
 
-(.$>) :: (ToJSVal b) => JSVal -> b -> IO JSVal
-a .$> b = toJSVal b >>= bound_attr a
-
-(.$>>) :: (ToJSVal b) => IO JSVal -> b -> IO JSVal
-a .$>> b = a >>= (.$> b)
-
 alert :: (ToJSVal a) => a -> IO ()
 alert a = toJSVal a >>= alert_
 
@@ -74,7 +58,7 @@ a $. b = a >>= llac b
 llac :: (ToJSVal a) => (ToJSVal b) => a -> b -> IO JSVal
 llac = flip call
 
-jcurry :: (ToJSVal a) => IO a -> IO JSVal
+jcurry :: (ToJSVal a) => IO a -> IO JSVal -- todo: merge that with jvoid with rewriting in the style of printf
 jcurry val = val >>= toJSVal >>= jcurry_
 
 jvoid :: IO JSVal -> IO () -- Works like void but says if you have tried to execute a function without enough elements and not just silently ignores the result
@@ -86,30 +70,22 @@ set obj key val = do
   v <- toJSVal val
   void $ set_ obj k v
 
-call :: (ToJSVal a) => (ToJSVal b) => a -> b -> IO JSVal
-call a b = do
-  a' <- toJSVal a
-  b' <- toJSVal b
-  call_ a' b'
-
-call2 :: (ToJSVal a) => (ToJSVal b) => (ToJSVal c) => a -> b -> c -> IO JSVal
-call2 a b c = do
-  a' <- toJSVal a
-  b' <- toJSVal b
-  c' <- toJSVal c
-  call2_ a' b' c'
-
 class ToJSVal a where
   toJSVal :: a -> IO JSVal
 
 instance ToJSVal Int where
-  toJSVal = jsFromInt
+  toJSVal = pure . toJSString . show -- No idea how to do that better now
 
 instance ToJSVal Double where
-  toJSVal = jsFromDouble
+  toJSVal = pure . toJSString . show
 
 instance ToJSVal String where
   toJSVal = pure . toJSString
 
 instance ToJSVal JSVal where
   toJSVal = pure
+
+instance ToJSVal [JSVal] where
+  toJSVal = toJSArray
+
+$(jsFuncCalls 9)
