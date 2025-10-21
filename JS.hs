@@ -1,46 +1,40 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FlexibleInstances #-}
 -- Micro library for working with JS
-{-# LANGUAGE TemplateHaskell #-}
+-- foreign import javascript "((fn) =>{\
+--    \  const curried = (...args) => args.length >= fn.length ? fn(...args) : (...nextArgs) => curried(...args, ...nextArgs); \
+--    \  curried.fname = fn.name;\
+--    \  return curried;\
+--    \})"
+--   jcurry_ :: JSVal -> IO JSVal
+--
+-- foreign import javascript "(fn => { if (typeof fn === 'function') {console.error(`Not enough arguments for function ${fn.fname} (${fn.name})`);} })" noignore :: JSVal -> IO JSVal : w
+-- jcurry :: (ToJSVal a) => IO a -> IO JSVal -- todo: merge that with jvoid with rewriting in the style of printf
+-- jcurry val = val >>= toJSVal >>= jcurry_
+-- jvoid :: IO JSVal -> IO () -- Works like void but says if you have tried to execute a function without enough elements and not just silently ignores the result
+-- jvoid = (>>= noignore >>> void)
+-- No idea how to do that better now
+-- https://okmij.org/ftp/Haskell/polyvar-comp.lhs
+-- call :: JSVal -> JSVal -> IO JSVal -- temporary
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module JS where
 
-import CallGen (jsFuncCalls)
 import Control.Arrow ((>>>))
-import Control.Monad (void, when, (>=>))
-import Data.String (IsString, fromString)
+import Control.Monad (replicateM_, void, when, (>=>))
 import GHC.JS.Prim (JSVal, fromJSInt, toJSArray, toJSInt, toJSString)
 
--- foreign import javascript "eval" eval :: JSVal -> IO JSVal
-
 foreign import javascript "(()=>window)" window :: IO JSVal
-
-foreign import javascript "(()=>document)" document :: IO JSVal
-
-foreign import javascript "alert" alert_ :: JSVal -> IO ()
-
-foreign import javascript "(()=>console)" console :: IO JSVal
-
-foreign import javascript "document.getElementById" log_ :: JSVal -> IO JSVal
-
-foreign import javascript "(()=>{debugger;})" debugger :: IO ()
 
 foreign import javascript "((el, sel) => ((typeof el[sel] === 'function') ? el[sel].bind(el) : el[sel]))" attr :: JSVal -> JSVal -> IO JSVal
 
 foreign import javascript "((el, sel, val) => {el[sel] = val })" set_ :: JSVal -> JSVal -> JSVal -> IO ()
 
-foreign import javascript "((fn) =>{\
-   \const curried = (...args) => args.length >= fn.length ? fn(...args) : (...nextArgs) => curried(...args, ...nextArgs); \
-   \  curried.fname = fn.name;\
-   \  return curried;\
-   \})"
-  -- \  if (fn) {\
-  -- \    Object.defineProperty(curried, 'name', { value: `curried_${fn.name}`, writable: false, })\
-  -- \  };\
-  jcurry_ :: JSVal -> IO JSVal
-
-foreign import javascript "(fn => { if (typeof fn === 'function') {console.error(`Not enough arguments for function ${fn.fname} (${fn.name})`);} })" noignore :: JSVal -> IO JSVal
-
-instance IsString JSVal where
-  fromString = toJSString
+foreign import javascript "((obj) => {new obj()})" new :: JSVal -> IO JSVal
 
 (.>) :: (ToJSVal a) => JSVal -> a -> IO JSVal
 a .> b = toJSVal b >>= attr a
@@ -48,21 +42,8 @@ a .> b = toJSVal b >>= attr a
 (.>>) :: (ToJSVal b) => IO JSVal -> b -> IO JSVal
 a .>> b = a >>= (.> b)
 
-alert :: (ToJSVal a) => a -> IO ()
-alert a = toJSVal a >>= alert_
-
--- Apply result of jcurry to the next argument
-($.) :: (ToJSVal a) => IO JSVal -> a -> IO JSVal
-a $. b = a >>= llac b
-
 llac :: (ToJSVal a) => (ToJSVal b) => a -> b -> IO JSVal
-llac = flip call
-
-jcurry :: (ToJSVal a) => IO a -> IO JSVal -- todo: merge that with jvoid with rewriting in the style of printf
-jcurry val = val >>= toJSVal >>= jcurry_
-
-jvoid :: IO JSVal -> IO () -- Works like void but says if you have tried to execute a function without enough elements and not just silently ignores the result
-jvoid = (>>= noignore >>> void)
+llac = flip call1
 
 set :: (ToJSVal a) => (ToJSVal b) => JSVal -> b -> a -> IO ()
 set obj key val = do
@@ -74,7 +55,7 @@ class ToJSVal a where
   toJSVal :: a -> IO JSVal
 
 instance ToJSVal Int where
-  toJSVal = pure . toJSString . show -- No idea how to do that better now
+  toJSVal = pure . toJSString . show
 
 instance ToJSVal Double where
   toJSVal = pure . toJSString . show
@@ -88,4 +69,169 @@ instance ToJSVal JSVal where
 instance ToJSVal [JSVal] where
   toJSVal = toJSArray
 
-$(jsFuncCalls 9)
+foreign import javascript "(el => el())" call0 :: JSVal -> IO JSVal
+
+foreign import javascript "((el, a1) => el(a1))" call1_ :: JSVal -> JSVal -> IO JSVal
+
+foreign import javascript "((el, a1, a2) => el(a1, a2))" call2_ :: JSVal -> JSVal -> JSVal -> IO JSVal
+
+foreign import javascript "((el, a1, a2, a3) => el(a1, a2, a3))" call3_ :: JSVal -> JSVal -> JSVal -> JSVal -> IO JSVal
+
+foreign import javascript "((el, a1, a2, a3, a4) => el(a1, a2, a3, a4))" call4_ :: JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> IO JSVal
+
+foreign import javascript "((el, a1, a2, a3, a4, a5) => el(a1, a2, a3, a4, a5))" call5_ :: JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> IO JSVal
+
+foreign import javascript "((el, a1, a2, a3, a4, a5, a6) => el(a1, a2, a3, a4, a5, a6))" call6_ :: JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> IO JSVal
+
+foreign import javascript "((el, a1, a2, a3, a4, a5, a6, a7) => el(a1, a2, a3, a4, a5, a6, a7))" call7_ :: JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> IO JSVal
+
+foreign import javascript "((el, a1, a2, a3, a4, a5, a6, a7, a8) => el(a1, a2, a3, a4, a5, a6, a7, a8))" call8_ :: JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> IO JSVal
+
+foreign import javascript "((el, a1, a2, a3, a4, a5, a6, a7, a8, a9) => el(a1, a2, a3, a4, a5, a6, a7, a8, a9))" call9_ :: JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> IO JSVal
+
+foreign import javascript "((f, list) => f(...list))" callList_ :: JSVal -> JSVal -> IO JSVal
+
+callList :: JSVal -> [JSVal] -> IO JSVal
+callList f list = toJSArray list >>= callList_ f
+
+call1 :: (ToJSVal a, ToJSVal b) => a -> b -> IO JSVal
+call1 func arg1 = do
+  func' <- toJSVal func
+  arg1' <- toJSVal arg1
+  call1_ func' arg1'
+
+call2 :: (ToJSVal a, ToJSVal b, ToJSVal c) => a -> b -> c -> IO JSVal
+call2 func arg1 arg2 = do
+  func' <- toJSVal func
+  arg1' <- toJSVal arg1
+  arg2' <- toJSVal arg2
+  call2_ func' arg1' arg2'
+
+call3 :: (ToJSVal a, ToJSVal b, ToJSVal c, ToJSVal d) => a -> b -> c -> d -> IO JSVal
+call3 func arg1 arg2 arg3 = do
+  func' <- toJSVal func
+  arg1' <- toJSVal arg1
+  arg2' <- toJSVal arg2
+  arg3' <- toJSVal arg3
+  call3_ func' arg1' arg2' arg3'
+
+call4 :: (ToJSVal a, ToJSVal b, ToJSVal c, ToJSVal d, ToJSVal e) => a -> b -> c -> d -> e -> IO JSVal
+call4 func arg1 arg2 arg3 arg4 = do
+  func' <- toJSVal func
+  arg1' <- toJSVal arg1
+  arg2' <- toJSVal arg2
+  arg3' <- toJSVal arg3
+  arg4' <- toJSVal arg4
+  call4_ func' arg1' arg2' arg3' arg4'
+
+call5 :: (ToJSVal a, ToJSVal b, ToJSVal c, ToJSVal d, ToJSVal e, ToJSVal f) => a -> b -> c -> d -> e -> f -> IO JSVal
+call5 func arg1 arg2 arg3 arg4 arg5 = do
+  func' <- toJSVal func
+  arg1' <- toJSVal arg1
+  arg2' <- toJSVal arg2
+  arg3' <- toJSVal arg3
+  arg4' <- toJSVal arg4
+  arg5' <- toJSVal arg5
+  call5_ func' arg1' arg2' arg3' arg4' arg5'
+
+call6 :: (ToJSVal a, ToJSVal b, ToJSVal c, ToJSVal d, ToJSVal e, ToJSVal f, ToJSVal g) => a -> b -> c -> d -> e -> f -> g -> IO JSVal
+call6 func arg1 arg2 arg3 arg4 arg5 arg6 = do
+  func' <- toJSVal func
+  arg1' <- toJSVal arg1
+  arg2' <- toJSVal arg2
+  arg3' <- toJSVal arg3
+  arg4' <- toJSVal arg4
+  arg5' <- toJSVal arg5
+  arg6' <- toJSVal arg6
+  call6_ func' arg1' arg2' arg3' arg4' arg5' arg6'
+
+call7 :: (ToJSVal a, ToJSVal b, ToJSVal c, ToJSVal d, ToJSVal e, ToJSVal f, ToJSVal g, ToJSVal h) => a -> b -> c -> d -> e -> f -> g -> h -> IO JSVal
+call7 func arg1 arg2 arg3 arg4 arg5 arg6 arg7 = do
+  func' <- toJSVal func
+  arg1' <- toJSVal arg1
+  arg2' <- toJSVal arg2
+  arg3' <- toJSVal arg3
+  arg4' <- toJSVal arg4
+  arg5' <- toJSVal arg5
+  arg6' <- toJSVal arg6
+  arg7' <- toJSVal arg7
+  call7_ func' arg1' arg2' arg3' arg4' arg5' arg6' arg7'
+
+call8 :: (ToJSVal a, ToJSVal b, ToJSVal c, ToJSVal d, ToJSVal e, ToJSVal f, ToJSVal g, ToJSVal h, ToJSVal i) => a -> b -> c -> d -> e -> f -> g -> h -> i -> IO JSVal
+call8 func arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 = do
+  func' <- toJSVal func
+  arg1' <- toJSVal arg1
+  arg2' <- toJSVal arg2
+  arg3' <- toJSVal arg3
+  arg4' <- toJSVal arg4
+  arg5' <- toJSVal arg5
+  arg6' <- toJSVal arg6
+  arg7' <- toJSVal arg7
+  arg8' <- toJSVal arg8
+  call8_ func' arg1' arg2' arg3' arg4' arg5' arg6' arg7' arg8'
+
+call9 :: (ToJSVal a, ToJSVal b, ToJSVal c, ToJSVal d, ToJSVal e, ToJSVal f, ToJSVal g, ToJSVal h, ToJSVal i, ToJSVal j) => a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> IO JSVal
+call9 func arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 = do
+  func' <- toJSVal func
+  arg1' <- toJSVal arg1
+  arg2' <- toJSVal arg2
+  arg3' <- toJSVal arg3
+  arg4' <- toJSVal arg4
+  arg5' <- toJSVal arg5
+  arg6' <- toJSVal arg6
+  arg7' <- toJSVal arg7
+  arg8' <- toJSVal arg8
+  arg9' <- toJSVal arg9
+  call9_ func' arg1' arg2' arg3' arg4' arg5' arg6' arg7' arg8' arg9'
+
+class ListBuilder r where
+  build :: [JSVal] -> r
+
+instance ListBuilder [JSVal] where
+  build = reverse
+
+instance (ListBuilder next_r) => ListBuilder (JSVal -> next_r) where
+  build acc x = build (x : acc)
+
+class MCompose f1 f2 cp gresult result | f1 f2 cp gresult -> result, f2 -> cp where
+  mcomp :: (f1 -> f2) -> (cp -> gresult) -> result
+
+instance MCompose a JSVal JSVal c (a -> c) where
+  mcomp f g = g . f
+
+instance MCompose a [JSVal] [JSVal] c (a -> c) where
+  mcomp f g = g . f
+
+instance (MCompose f1 f2 cp gresult result) => MCompose a (f1 -> f2) cp gresult (a -> result) where
+  mcomp f g a = mcomp (f a) g
+
+call f = (build [] :: JSVal -> [JSVal]) `mcomp` callList f
+
+type JSVal = Int
+
+callList :: JSVal -> [JSVal] -> IO JSVal
+callList a b = pure a
+
+class ListBuilder r where
+  build :: [JSVal] -> r
+
+instance ListBuilder [JSVal] where
+  build = reverse
+
+instance (ListBuilder next_r) => ListBuilder (JSVal -> next_r) where
+  build acc x = build (x : acc)
+
+class MCompose f1 f2 cp gresult result | f1 f2 cp gresult -> result, f2 -> cp where
+  mcomp :: (f1 -> f2) -> (cp -> gresult) -> result
+
+instance MCompose a JSVal JSVal c (a -> c) where
+  mcomp f g = g . f
+
+instance MCompose a [JSVal] [JSVal] c (a -> c) where
+  mcomp f g = g . f
+
+instance (MCompose f1 f2 cp gresult result) => MCompose a (f1 -> f2) cp gresult (a -> result) where
+  mcomp f g a = mcomp (f a) g
+
+call :: (ListBuilder r, MCompose r [JSVal] [JSVal] (IO JSVal) result) => JSVal -> result
+call f = (build @r []) `mcomp` callList f

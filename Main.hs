@@ -1,4 +1,3 @@
--- {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 module Main where
@@ -10,33 +9,34 @@ import JS
 import Relude
 
 log :: (ToJSVal a) => a -> IO ()
-log a = void $ (console .>> "log") >>= llac a
+log a = void $ (window .>> "console" .>> "log") >>= llac a
 
--- void $ call <$> (console .>> "log") ?? a
+arc :: JSVal -> Int -> Int -> Int -> Int -> Double -> IO JSVal
+arc ctx cx cy r start end = (ctx .> "arc") >>= \f -> call5 f cx cy r start end
 
 plot :: String -> IO ()
 plot id = do
   log "Hello log from JS"
-  (console .>> "log") >>= llac id
-  canvas <- (document .>> "getElementById") >>= llac id
-  ctx <- join $ call <$> canvas .> "getContext" ?? "2d"
-  computedStyle <- join (call <$> window .>> "getComputedStyle" <*> (document .>> "body")) .>> "color"
-  log computedStyle
+  window .>> "alert" >>= llac "Hello alert from JS"
+  window .>> "console" .>> "log" >>= llac id
+  canvas <- window .>> "document" .>> "getElementById" >>= llac id
+  ctx <- canvas .> "getContext" >>= llac "2d"
 
-  let padding = 70 :: Int
-      width = 700 :: Int
+  let width = 700 :: Int
       height = 300 :: Int
   set canvas "width" width
   set canvas "height" height
 
   ctx .> "beginPath" >>= call0
-  jvoid $ jcurry (ctx .> "arc") $. (150 :: Int) $. (150 :: Int) $. (80 :: Int) $. (0 :: Int) $. (2 * 3.14159 :: Double)
+  arc ctx 150 150 80 0 (2 * 3.14159)
   set ctx "fillStyle" "#10b981"
   ctx .> "fill" >>= call0
   set ctx "strokeStyle" "#065f46"
   set ctx "lineWidth" (4 :: Int)
   ctx .> "stroke" >>= call0
   void $ ctx .> "closePath" >>= call0
+  alert <- window .>> "alert"
+  void $ (call :: JSVal -> JSVal -> IO JSVal) alert (toJSString "polyvariadic")
 
 main :: IO ()
 main = plot "canvas"
