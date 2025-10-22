@@ -21,7 +21,7 @@ set -- "${1:-Main}" "${@:2}" # Default is Main
 cabal build --with-compiler=javascript-unknown-ghcjs-ghc --with-ghc-pkg=javascript-unknown-ghcjs-ghc-pkg --only-dependencies
 
 set -e
-cabal --with-compiler=javascript-unknown-ghcjs-ghc --with-ghc-pkg=javascript-unknown-ghcjs-ghc-pkg exec bash -- -c "javascript-unknown-ghcjs-ghc -fexternal-interpreter $@"
+cabal --with-compiler=javascript-unknown-ghcjs-ghc --with-ghc-pkg=javascript-unknown-ghcjs-ghc-pkg exec bash -- -c "javascript-unknown-ghcjs-ghc -fexternal-interpreter -Wall $@"
 
 rollup $1 -o $1.js
 # mv $1 $1.js

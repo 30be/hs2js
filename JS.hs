@@ -1,17 +1,7 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE UndecidableInstances #-}
-
 module JS where
 
-import Control.Arrow ((>>>))
-import Control.Monad (replicateM_, void, when, (>=>))
-import GHC.JS.Prim (JSVal, fromJSInt, toJSArray, toJSInt, toJSString)
+import Control.Monad (void)
+import GHC.JS.Prim (JSVal, toJSArray, toJSString)
 import System.IO.Unsafe (unsafePerformIO)
 
 foreign import javascript "(()=>window)" window :: IO JSVal
@@ -33,7 +23,7 @@ a .>> b = a >>= (.> b)
 -- Call member function, like
 -- window .>> "history" ~> "back"
 (~>) :: (ToJSVal a) => JSVal -> a -> IO JSVal
-a ~> b = a .> b >>= flip callList []
+a ~> b = a .> b >>= call
 
 set :: (ToJSVal a) => (ToJSVal b) => JSVal -> b -> a -> IO ()
 set obj key val = set_ obj (toJSVal key) (toJSVal val)
@@ -56,34 +46,27 @@ instance ToJSVal JSVal where
 instance ToJSVal [JSVal] where
   toJSVal = unsafePerformIO . toJSArray
 
-class ListBuilder r where
-  build :: [JSVal] -> r
+class CallReturn a where
+  callReturn :: IO JSVal -> IO a
 
-instance ListBuilder [JSVal] where
-  build = id
+instance CallReturn JSVal where
+  callReturn = id
 
-instance (ToJSVal a, ListBuilder next_r) => ListBuilder (a -> next_r) where
-  build acc x = build ((toJSVal x) : acc)
+instance CallReturn () where
+  callReturn = void
 
-class MCompose f gresult result | f gresult -> result where
-  mcomp :: f -> ([JSVal] -> gresult) -> result
+class Call result where
+  call' :: JSVal -> [JSVal] -> result
 
-instance MCompose (a -> [JSVal]) c (a -> c) where
-  mcomp f g = g . f
+instance (CallReturn a) => Call (IO a) where
+  call' f_jsval args = callReturn (callList f_jsval (reverse args))
 
-instance (MCompose (f -> f') gresult result) => MCompose (a -> f -> f') gresult (a -> result) where
-  mcomp f g a = mcomp (f a) g
+instance (ToJSVal arg, Call result) => Call (arg -> result) where
+  call' f_jsval args x = call' f_jsval (toJSVal x : args)
 
 callList :: JSVal -> [JSVal] -> IO JSVal
 callList f list = toJSArray list >>= callList_ f
 
 -- Gets arguments first and the function last
--- Should be called with type argument(for now):
--- call @(Arg1 -> Arg2 -> ... -> ArgN -> JSVal -> [JSVal])
-call :: forall builder result. (ListBuilder builder, MCompose builder (IO JSVal) result) => result
-call =
-  (build [] :: builder) `mcomp` \case
-    [] -> error "call requires at least one argument"
-    (x : xs) -> callList x (reverse xs)
-
--- TODO: Make the type application optional(somehow??)
+call :: (Call result) => JSVal -> result
+call f_jsval = call' f_jsval []
