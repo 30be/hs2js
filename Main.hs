@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 module Main where
@@ -10,7 +9,7 @@ import JS
 import Relude
 
 log :: (ToJSVal arg) => arg -> IO ()
-log a = void $ (window .>> "console" .>> "log") >>= call @(JSVal -> JSVal -> [JSVal]) (toJSVal a)
+log a = void $ window .>> "console" .>> "log" >>= call @(JSVal -> JSVal -> [JSVal]) (toJSVal a)
 
 arc :: JSVal -> Int -> Int -> Int -> Double -> Double -> IO JSVal
 arc ctx cx cy r start end = ctx .> "arc" >>= call @(Int -> Int -> Int -> Double -> Double -> JSVal -> [JSVal]) cx cy r start end
@@ -36,7 +35,7 @@ plot id = do
   ctx ~> "stroke"
   ctx ~> "closePath"
   window .>> "alert" >>= call @(String -> JSVal -> [JSVal]) "polyvariadic"
-  pure ()
+  void $ window .>> "console" .>> "log" >>= call @(String -> String -> String -> JSVal -> [JSVal]) "hello" "world" "polyvariadic"
 
 main :: IO ()
 main = plot "canvas"

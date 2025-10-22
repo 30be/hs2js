@@ -2,65 +2,47 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-
--- Micro library for working with JS
--- foreign import javascript "((fn) =>{\
---    \  const curried = (...args) => args.length >= fn.length ? fn(...args) : (...nextArgs) => curried(...args, ...nextArgs); \
---    \  curried.fname = fn.name;\
---    \  return curried;\
---    \})"
---   jcurry_ :: JSVal -> IO JSVal
---
--- foreign import javascript "(fn => { if (typeof fn === 'function') {console.error(`Not enough arguments for function ${fn.fname} (${fn.name})`);} })" noignore :: JSVal -> IO JSVal : w
--- jcurry :: (ToJSVal a) => IO a -> IO JSVal -- todo: merge that with jvoid with rewriting in the style of printf
--- jcurry val = val >>= toJSVal >>= jcurry_
--- jvoid :: IO JSVal -> IO () -- Works like void but says if you have tried to execute a function without enough elements and not just silently ignores the result
--- jvoid = (>>= noignore >>> void)
--- No idea how to do that better now
--- https://okmij.org/ftp/Haskell/polyvar-comp.lhs
--- call :: JSVal -> JSVal -> IO JSVal -- temporary
 
 module JS where
 
 import Control.Arrow ((>>>))
 import Control.Monad (replicateM_, void, when, (>=>))
 import GHC.JS.Prim (JSVal, fromJSInt, toJSArray, toJSInt, toJSString)
-import Relude
 import System.IO.Unsafe (unsafePerformIO)
 
 foreign import javascript "(()=>window)" window :: IO JSVal
 
-foreign import javascript "((el, sel) => ((typeof el[sel] === 'function') ? el[sel].bind(el) : el[sel]))" attr :: JSVal -> JSVal -> IO JSVal
+foreign import javascript "((el, sel) => ((typeof el[sel] === 'function') ? el[sel].bind(el) : el[sel]))" get :: JSVal -> JSVal -> IO JSVal
 
 foreign import javascript "((el, sel, val) => {el[sel] = val })" set_ :: JSVal -> JSVal -> JSVal -> IO ()
 
 foreign import javascript "((obj) => {new obj()})" new :: JSVal -> IO JSVal
 
-foreign import javascript "((f, list) => f(...list))" callList_ :: JSVal -> JSVal -> IO JSVal
-
-foreign import javascript "(f => f())" call0 :: JSVal -> IO JSVal
+foreign import javascript "((f, args) => f(...args))" callList_ :: JSVal -> JSVal -> IO JSVal
 
 (.>) :: (ToJSVal a) => JSVal -> a -> IO JSVal
-a .> b = attr a (toJSVal b)
+a .> b = get a (toJSVal b)
 
 (.>>) :: (ToJSVal b) => IO JSVal -> b -> IO JSVal
 a .>> b = a >>= (.> b)
 
+-- Call member function, like
+-- window .>> "history" ~> "back"
+(~>) :: (ToJSVal a) => JSVal -> a -> IO JSVal
+a ~> b = a .> b >>= flip callList []
+
 set :: (ToJSVal a) => (ToJSVal b) => JSVal -> b -> a -> IO ()
-set obj key val = void $ set_ obj (toJSVal key) (toJSVal val)
+set obj key val = set_ obj (toJSVal key) (toJSVal val)
 
 class ToJSVal a where
   toJSVal :: a -> JSVal
 
 instance ToJSVal Int where
-  toJSVal = toJSString . show
+  toJSVal = toJSString . show -- TODO: Fix that
 
 instance ToJSVal Double where
   toJSVal = toJSString . show
@@ -102,9 +84,6 @@ call :: forall builder result. (ListBuilder builder, MCompose builder (IO JSVal)
 call =
   (build [] :: builder) `mcomp` \case
     [] -> error "call requires at least one argument"
-    (x : xs) -> callList x xs
+    (x : xs) -> callList x (reverse xs)
 
--- Call member function, like
--- window .>> "history" ~> "back"
-(~>) :: (ToJSVal a) => JSVal -> a -> IO JSVal
-a ~> b = a .> b >>= call0
+-- TODO: Make the type application optional(somehow??)
