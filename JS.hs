@@ -3,10 +3,12 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 
 -- Micro library for working with JS
 -- foreign import javascript "((fn) =>{\
@@ -30,6 +32,7 @@ module JS where
 import Control.Arrow ((>>>))
 import Control.Monad (replicateM_, void, when, (>=>))
 import GHC.JS.Prim (JSVal, fromJSInt, toJSArray, toJSInt, toJSString)
+import Relude
 
 foreign import javascript "(()=>window)" window :: IO JSVal
 
@@ -210,6 +213,9 @@ call =
   (build [] :: builder) `mcomp` \case
     [] -> error "call requires at least one argument"
     (x : xs) -> callList x xs
+
+(~>) :: forall builder result b. (ListBuilder builder, MCompose builder (IO JSVal) result, ToJSVal b) => JSVal -> b -> result
+a ~> b = (build [] :: builder) `mcomp` ((a .> b >>=) . flip callList)
 
 -- I still need to make it all work with ToJSVal
 

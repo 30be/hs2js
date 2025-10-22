@@ -27,14 +27,17 @@ plot id = do
   set canvas "width" width
   set canvas "height" height
 
-  ctx .> "beginPath" >>= call0
+  ctx ~> "beginPath"
   arc ctx 150 150 80 0 (2 * 3.14159)
   set ctx "fillStyle" "#10b981"
-  ctx .> "fill" >>= call0
+  ctx ~> "fill"
   set ctx "strokeStyle" "#065f46"
   set ctx "lineWidth" (4 :: Int)
-  ctx .> "stroke" >>= call0
-  void $ ctx .> "closePath" >>= call0
+  ctx ~> "stroke"
+  -- (~>) @(JSVal -> String -> JSVal -> IO JSVal) ctx "closePath"
+  -- ctx ~> "closePath"
+  -- void $ (ctx ~> "closePath")
+  void $ (~>) @([JSVal]) ctx "closePath"
   alert <- window .>> "alert"
   void $ call @(JSVal -> JSVal -> [JSVal]) alert (toJSString "polyvariadic")
 
