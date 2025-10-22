@@ -68,5 +68,5 @@ callList :: JSVal -> [JSVal] -> IO JSVal
 callList f list = toJSArray list >>= callList_ f
 
 -- Gets arguments first and the function last
-call :: (Call result) => JSVal -> result
+call :: forall result. (Call result) => JSVal -> result
 call f_jsval = call' f_jsval []
